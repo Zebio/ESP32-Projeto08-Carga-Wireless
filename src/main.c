@@ -7,6 +7,7 @@
 
 
 
+
 /*-------------------Mapeamento de Hardware----------------------*/
 #define pino_de_leitura ADC1_CHANNEL_5 //Pino escolhido para leitura do adc: ADC1-CH5 = GPIO33
 
@@ -15,6 +16,10 @@
 const uint32_t defaultVref=1114; //Tensão de Referência do meu ESP32 =1.114 V
 //Mais informações em: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html#adc-calibration
 
+
+/*-------------------Variáveis Globais     ----------------------*/
+uint32_t tensao_da_bateria;
+uint32_t porcentagem_da_bateria;
 
 
 esp_adc_cal_characteristics_t adc_config;//struct para uso da função de calibração: esp_adc_cal_characterize();
@@ -36,9 +41,9 @@ void app_main() {
         //esp_adc_cal_characterize()
         uint32_t voltage =  esp_adc_cal_raw_to_voltage(reading,&adc_config);
 
-        float voltage2=voltage;
-        voltage2=voltage2/1000;
-        printf("Tensao: %f \n",voltage2);
+        tensao_da_bateria = voltage*4;
+        porcentagem_da_bateria=((tensao_da_bateria-3600)/7);
+        printf("Tensao: %d ; Porcentagem: %d \n",tensao_da_bateria,porcentagem_da_bateria);
         vTaskDelay(100/portTICK_RATE_MS);
     }
     
@@ -55,3 +60,4 @@ void setup_ADC(){
     //função para aumentar a precisão na leitura do ADC
     esp_adc_cal_characterize(ADC_UNIT_1,ADC_ATTEN_DB_0,ADC_WIDTH_BIT_12,defaultVref,&adc_config);
 }
+
