@@ -1,4 +1,4 @@
-/*--------------------------------------Bibliotecas de projeto------------------------------------------*/
+/*--------------------------------------Bibliotecas de projeto----------------------------------------------*/
 
 #include <stdio.h>                  //printf
 #include <driver/adc.h>             //biblioteca do ADC
@@ -11,9 +11,6 @@
 #include <esp_http_server.h>        //biblioteca para poder usar o server http
 
 
-/*
-#include "esp_event.h"              //eventos
-*/
 
 /*--------------------------------------------Mapeamento de Hardware----------------------------------------*/
 
@@ -31,33 +28,28 @@
 
 /*Aqui definimos o SSID, a Senha e o número máximo de tentativas que vamos 
 tentar ao se conectar à rede Wireless*/
-#define EXAMPLE_ESP_WIFI_SSID      "tira_o_zoio"
-#define EXAMPLE_ESP_WIFI_PASS      "jabuticaba"
-#define EXAMPLE_ESP_MAXIMUM_RETRY  10
+#define ESP_WIFI_SSID      "tira_o_zoio"
+#define ESP_WIFI_PASS      "jabuticaba"
+#define ESP_MAXIMUM_RETRY  10
 
 
 
 /*-----------------------------------------------Constantes de Projeto --------------------------------------*/
 
-const uint32_t defaultVref=1114;    //Tensão de Referência do meu ESP32 =1.114 V
+static const uint32_t defaultVref=1114;    //Tensão de Referência do meu ESP32 =1.114 V
 //Mais informações em: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html#adc-calibration
 
 static const char *TAG = "ESP";     //A tag que será impressa no log do sistema  
 
 
 
-/*-------------------------------Constantes Cstring para Armazenar os códigos HTML ---------------------------*/
-const char *index1_html= "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" href=\"data:,\"><title>Projeto07 - Nivel de Carga de bateria</title><script type = \"text/JavaScript\">       function AutoRefresh( t ) {   setTimeout(\"location.reload(true);\", t);}</script></head><style>html{color: #ffffff;font-family: Verdana;text-align: center;background-color: #0c0c27fd}h2{font-size: 30px;}p{font-size: 22px;}</style><body onload = \"JavaScript:AutoRefresh(1000);\"><h2>Monitoramento de Bateria IOT</h2><p> Tensao lida na bateria: ";
-const char *index2_html= "</p><p> Porcentagem estimada: ";
-const char *index3_html= "</p></body></html>";
-
 
 /*-------------------------------------------------Variáveis Globais-----------------------------------------*/
 
-uint32_t tensao_da_bateria;                      //valor da tensão da bateria em mV
-int porcentagem_da_bateria;                 //porcentagem estimada de carga da bateria
-static int numero_tentativa_de_conexao_wifi = 0; //numero atual da tentativa de se conectar a rede,
-                                                 //tentativas máximas= EXAMPLE_ESP_MAXIMUM_RETRY
+static uint32_t tensao_da_bateria;                      //valor da tensão da bateria em mV
+static int32_t  porcentagem_da_bateria;                 //porcentagem estimada de carga da bateria
+static uint32_t numero_tentativa_de_conexao_wifi = 0;   //numero atual da tentativa de se conectar a rede,
+                                                        //tentativas máximas= EXAMPLE_ESP_MAXIMUM_RETRY
 
 
 
@@ -66,7 +58,7 @@ static int numero_tentativa_de_conexao_wifi = 0; //numero atual da tentativa de 
 //Handle dos Eventos Wireless
 static EventGroupHandle_t s_wifi_event_group;
 
-esp_adc_cal_characteristics_t adc_config;//struct para uso da função de calibração: esp_adc_cal_characterize();
+static esp_adc_cal_characteristics_t adc_config;//struct para uso da função de calibração: esp_adc_cal_characterize();
 //mais informações em: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html#_CPPv424esp_adc_cal_characterize10adc_unit_t11adc_atten_t16adc_bits_width_t8uint32_tP29esp_adc_cal_characteristics_t
 
 //Declaração do server http
@@ -76,11 +68,11 @@ static httpd_handle_t server =NULL;
 
 /*-----------------------------------------------Declaração das Funções--------------------------------------*/
 
-void setup_ADC();     //Configurações iniciais do ADC
+static void setup_ADC();     //Configurações iniciais do ADC
 
-void leitura_ADC();   //Realiza a leitura no pino ADC e atualiza as variaveis
+static void leitura_ADC();   //Realiza a leitura no pino ADC e atualiza as variaveis
 
-void setup_nvs();     //Inicia a memória nvs. Ela é necessária para se conectar à rede Wireless
+static void setup_nvs();     //Inicia a memória nvs. Ela é necessária para se conectar à rede Wireless
 
 void wifi_init_sta(); //Configura a rede wireless
 
@@ -95,7 +87,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 static httpd_handle_t start_webserver(void);
 
 //Imprimimos a Webpage
-void print_webpage(httpd_req_t *req);
+static void print_webpage(httpd_req_t *req);
 
 //handler do Get da Página Principal
 static esp_err_t main_page_get_handler(httpd_req_t *req);
@@ -130,7 +122,7 @@ void app_main() {
 
 /*-------------------------------------Implementação das Funções----------------------------------------------*/
 
-void setup_ADC(){
+static void setup_ADC(){
 
     adc1_config_width(ADC_WIDTH_BIT_12);//ADC1 com 12 bits
 
@@ -142,7 +134,7 @@ void setup_ADC(){
     esp_adc_cal_characterize(ADC_UNIT_1,ADC_ATTEN_DB_0,ADC_WIDTH_BIT_12,defaultVref,&adc_config);
 }
 
-void leitura_ADC(){
+static void leitura_ADC(){
 
         //É guardado na variável reading o valor bruto lido pelo adc
         uint32_t reading =  adc1_get_raw(pino_de_leitura); 
@@ -159,7 +151,7 @@ void leitura_ADC(){
 }
 
 
-void setup_nvs(){
+static void setup_nvs(){
     //Inicializa a memória nvs pois é necessária para o funcionamento do Wireless
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -176,7 +168,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect(); //se o Wifi ja foi iniciado tenta se conectar
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (numero_tentativa_de_conexao_wifi < EXAMPLE_ESP_MAXIMUM_RETRY) { //se o numero atual de tentativas
+        if (numero_tentativa_de_conexao_wifi < ESP_MAXIMUM_RETRY) { //se o numero atual de tentativas
             esp_wifi_connect();                                             //de conexão não atingiu o máximo
             numero_tentativa_de_conexao_wifi++;                             //tenta denovo            
             ESP_LOGI(TAG, "retry to connect to the AP");
@@ -219,8 +211,8 @@ void wifi_init_sta(){
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .password = EXAMPLE_ESP_WIFI_PASS,
+            .ssid = ESP_WIFI_SSID,
+            .password = ESP_WIFI_PASS,
             /* Setting a password implies station will connect to all security modes including WEP/WPA.
              * However these modes are deprecated and not advisable to be used. Incase your Access point
              * doesn't support WPA2, these mode can be enabled by commenting below line */
@@ -250,10 +242,10 @@ void wifi_init_sta(){
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+                 ESP_WIFI_SSID, ESP_WIFI_PASS);
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+                 ESP_WIFI_SSID, ESP_WIFI_PASS);
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }
@@ -286,13 +278,20 @@ static httpd_handle_t start_webserver(void)
 }
 
 //Imprimimos a Webpage
-void print_webpage(httpd_req_t *req)
+static void print_webpage(httpd_req_t *req)
 {
-    char char_tensao_da_bateria[4];
-    sprintf(char_tensao_da_bateria, "%d", tensao_da_bateria); //converte int para char* para enviar no html
+    //Constantes Cstring para Armazenar os pedaços do código HTML 
+    const char *index1_html= "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" href=\"data:,\"><title>Projeto07 - Nivel de Carga de bateria</title><script type = \"text/JavaScript\">       function AutoRefresh( t ) {   setTimeout(\"location.reload(true);\", t);}</script></head><style>html{color: #ffffff;font-family: Verdana;text-align: center;background-color: #0c0c27fd}h2{font-size: 30px;}p{font-size: 22px;}</style><body onload = \"JavaScript:AutoRefresh(1000);\"><h2>Monitoramento de Bateria IOT</h2><p> Tensao lida na bateria: ";
+    const char *index2_html= "</p><p> Porcentagem estimada: ";
+    const char *index3_html= "</p></body></html>";
 
+    //converte a tensão da bateria de int para char* para enviar no html
+    char char_tensao_da_bateria[4];
+    sprintf(char_tensao_da_bateria, "%d", tensao_da_bateria);
+
+    //converte a porcentagem da bateria de int para char* para enviar no html
     char char_porcentagem_da_bateria[3];
-    sprintf(char_porcentagem_da_bateria, "%d",porcentagem_da_bateria); //converte int para char* para enviar no html
+    sprintf(char_porcentagem_da_bateria, "%d",porcentagem_da_bateria); 
 
     //vamos concatenando os "pedaços" do html no buffer de acordo com os valores das variáveis
     char buffer[617] =""; 
@@ -302,7 +301,7 @@ void print_webpage(httpd_req_t *req)
     strcat(buffer, char_porcentagem_da_bateria);
     strcat(buffer, index3_html);
 
-    httpd_resp_send(req, buffer, strlen(buffer)); //envia o buffer como página html pronta
+    httpd_resp_send(req, buffer, strlen(buffer)); //envia via http o buffer que contém a página html completa
 }
 
 
@@ -314,4 +313,3 @@ static esp_err_t main_page_get_handler(httpd_req_t *req)
     //retorna OK
     return ESP_OK;
 }
-
