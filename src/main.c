@@ -8,6 +8,7 @@
 #include "freertos/event_groups.h"  //grupo de eventos
 #include <esp_wifi.h>               //wireless
 #include "esp_log.h"                //log de eventos no monitor serial
+#include <esp_http_server.h>        //biblioteca para poder usar o server http
 
 
 /*
@@ -45,10 +46,16 @@ static const char *TAG = "ESP";     //A tag que será impressa no log do sistema
 
 
 
+/*-------------------------------Constantes Cstring para Armazenar os códigos HTML ---------------------------*/
+const char *index1_html= "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" href=\"data:,\"><title>Projeto07 - Nivel de Carga de bateria</title><script type = \"text/JavaScript\">       function AutoRefresh( t ) {   setTimeout(\"location.reload(true);\", t);}</script></head><style>html{color: #ffffff;font-family: Verdana;text-align: center;background-color: #0c0c27fd}h2{font-size: 30px;}p{font-size: 22px;}</style><body onload = \"JavaScript:AutoRefresh(1000);\"><h2>Monitoramento de Bateria IOT</h2><p> Tensao lida na bateria: ";
+const char *index2_html= "</p><p> Porcentagem estimada: ";
+const char *index3_html= "</p></body></html>";
+
+
 /*-------------------------------------------------Variáveis Globais-----------------------------------------*/
 
 uint32_t tensao_da_bateria;                      //valor da tensão da bateria em mV
-uint32_t porcentagem_da_bateria;                 //porcentagem estimada de carga da bateria
+int porcentagem_da_bateria;                 //porcentagem estimada de carga da bateria
 static int numero_tentativa_de_conexao_wifi = 0; //numero atual da tentativa de se conectar a rede,
                                                  //tentativas máximas= EXAMPLE_ESP_MAXIMUM_RETRY
 
@@ -61,6 +68,9 @@ static EventGroupHandle_t s_wifi_event_group;
 
 esp_adc_cal_characteristics_t adc_config;//struct para uso da função de calibração: esp_adc_cal_characterize();
 //mais informações em: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html#_CPPv424esp_adc_cal_characterize10adc_unit_t11adc_atten_t16adc_bits_width_t8uint32_tP29esp_adc_cal_characteristics_t
+
+//Declaração do server http
+static httpd_handle_t server =NULL;
 
 
 
@@ -81,18 +91,39 @@ static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data);
 
 
+//Cria o Server, Faz as configurações Padrão e Inicia os URI Handlers para os GETs
+static httpd_handle_t start_webserver(void);
+
+//Imprimimos a Webpage
+void print_webpage(httpd_req_t *req);
+
+//handler do Get da Página Principal
+static esp_err_t main_page_get_handler(httpd_req_t *req);
+
+
+
+/*--------------------------------------Declaração dos GETs do http------------------------------------------*/
+//a declaração do GET da página Principal
+static const httpd_uri_t main_page = {
+    .uri       = "/",
+    .method    = HTTP_GET,
+    .handler   = main_page_get_handler,
+    .user_ctx  = NULL
+};
+
 
 
 /*--------------------------------------------- Função Principal --------------------------------------------*/
 
 void app_main() {
-    setup_ADC();    //configura ADC
-    setup_nvs();    //configura a memoria nvs
-    while (1)
-    {
-        leitura_ADC();
+    setup_ADC();                  //configura ADC
+    setup_nvs();                  //configura a memoria nvs  
+    wifi_init_sta();              //configura e inicia a conexão wireless
+    server = start_webserver();   //configura e inicia o server
+   /*while (true){
+        leitura_ADC();            //realiza a leitura do ADC a cada 100ms
         vTaskDelay(100/portTICK_RATE_MS);
-    }
+    }*/
 }
 
 
@@ -124,7 +155,7 @@ void leitura_ADC(){
 
         tensao_da_bateria = voltage*4;
         porcentagem_da_bateria=((tensao_da_bateria-3600)/7);
-        printf("Tensao: %d ; Porcentagem: %d \n",tensao_da_bateria,porcentagem_da_bateria);
+        //printf("Tensao: %d ; Porcentagem: %d \n",tensao_da_bateria,porcentagem_da_bateria);
 }
 
 
@@ -179,6 +210,7 @@ void wifi_init_sta(){
                                                         &event_handler,
                                                         NULL,
                                                         &instance_any_id));
+
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
                                                         IP_EVENT_STA_GOT_IP,
                                                         &event_handler,
@@ -230,5 +262,56 @@ void wifi_init_sta(){
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
     vEventGroupDelete(s_wifi_event_group);
+}
+
+//Cria o Server, Faz as configurações Padrão e Inicia os URI Handlers
+//para os GETs
+static httpd_handle_t start_webserver(void)
+{
+    httpd_handle_t server = NULL;
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.lru_purge_enable = true;
+
+    // Inicia o server http
+    printf("Iniciando o Server na Porta: '%d'\n", config.server_port);
+    if (httpd_start(&server, &config) == ESP_OK) {
+        // Set URI handlers
+        printf("Registrando URI handlers\n");
+        httpd_register_uri_handler(server, &main_page);
+        return server;
+    }
+
+    printf("Erro ao iniciar Server\n");
+    return NULL;
+}
+
+//Imprimimos a Webpage
+void print_webpage(httpd_req_t *req)
+{
+    char char_tensao_da_bateria[4];
+    sprintf(char_tensao_da_bateria, "%d", tensao_da_bateria); //converte int para char* para enviar no html
+
+    char char_porcentagem_da_bateria[3];
+    sprintf(char_porcentagem_da_bateria, "%d",porcentagem_da_bateria); //converte int para char* para enviar no html
+
+    //vamos concatenando os "pedaços" do html no buffer de acordo com os valores das variáveis
+    char buffer[617] =""; 
+    strcat(buffer, index1_html);
+    strcat(buffer, char_tensao_da_bateria);
+    strcat(buffer, index2_html);
+    strcat(buffer, char_porcentagem_da_bateria);
+    strcat(buffer, index3_html);
+
+    httpd_resp_send(req, buffer, strlen(buffer)); //envia o buffer como página html pronta
+}
+
+
+//handler do Get da Página Principal
+static esp_err_t main_page_get_handler(httpd_req_t *req)
+{
+    //imprime a página
+    print_webpage(req);
+    //retorna OK
+    return ESP_OK;
 }
 
