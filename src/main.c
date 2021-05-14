@@ -150,9 +150,8 @@ static void leitura_ADC(){
         //printf("Tensao: %d ; Porcentagem: %d \n",tensao_da_bateria,porcentagem_da_bateria);
 }
 
-
+//Inicializa a memória nvs pois é necessária para o funcionamento do Wireless
 static void setup_nvs(){
-    //Inicializa a memória nvs pois é necessária para o funcionamento do Wireless
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       ESP_ERROR_CHECK(nvs_flash_erase());
@@ -161,7 +160,7 @@ static void setup_nvs(){
     ESP_ERROR_CHECK(ret);
 }
 
-//Lida com os Eventos da rede Wireless
+//Lida com os Eventos da rede Wireless, conexão à rede e endereço IP
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
@@ -277,13 +276,13 @@ static httpd_handle_t start_webserver(void)
     return NULL;
 }
 
-//Imprimimos a Webpage
+//Imprime a Webpage
 static void print_webpage(httpd_req_t *req)
 {
     //Constantes Cstring para Armazenar os pedaços do código HTML 
-    const char *index1_html= "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" href=\"data:,\"><title>Projeto07 - Nivel de Carga de bateria</title><script type = \"text/JavaScript\">       function AutoRefresh( t ) {   setTimeout(\"location.reload(true);\", t);}</script></head><style>html{color: #ffffff;font-family: Verdana;text-align: center;background-color: #0c0c27fd}h2{font-size: 30px;}p{font-size: 22px;}</style><body onload = \"JavaScript:AutoRefresh(1000);\"><h2>Monitoramento de Bateria IOT</h2><p> Tensao lida na bateria: ";
-    const char *index2_html= "</p><p> Porcentagem estimada: ";
-    const char *index3_html= "</p></body></html>";
+    const char *index_html_part1= "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" href=\"data:,\"><title>Projeto07 - Nivel de Carga de bateria</title><script type = \"text/JavaScript\">       function AutoRefresh( t ) {   setTimeout(\"location.reload(true);\", t);}</script></head><style>html{color: #ffffff;font-family: Verdana;text-align: center;background-color: #0c0c27fd}h2{font-size: 30px;}p{font-size: 22px;}</style><body onload = \"JavaScript:AutoRefresh(1000);\"><h2>Monitoramento de Bateria IOT</h2><p> Tensao lida na bateria: ";
+    const char *index_html_part2= "</p><p> Porcentagem estimada: ";
+    const char *index_html_part3= "</p></body></html>";
 
     //converte a tensão da bateria de int para char* para enviar no html
     char char_tensao_da_bateria[4];
@@ -295,11 +294,11 @@ static void print_webpage(httpd_req_t *req)
 
     //vamos concatenando os "pedaços" do html no buffer de acordo com os valores das variáveis
     char buffer[617] =""; 
-    strcat(buffer, index1_html);
+    strcat(buffer, index_html_part1);
     strcat(buffer, char_tensao_da_bateria);
-    strcat(buffer, index2_html);
+    strcat(buffer, index_html_part2);
     strcat(buffer, char_porcentagem_da_bateria);
-    strcat(buffer, index3_html);
+    strcat(buffer, index_html_part3);
 
     httpd_resp_send(req, buffer, strlen(buffer)); //envia via http o buffer que contém a página html completa
 }
