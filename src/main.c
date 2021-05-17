@@ -32,7 +32,8 @@ tentar ao se conectar à rede Wireless*/
 #define ESP_WIFI_PASS      "jabuticaba"
 #define ESP_MAXIMUM_RETRY  10
 
-
+#define DIVISOR_DE_TENSAO 4 //Dependendo do hardware, em quantas vezes o valor de tensão aplicado na
+                            //entrada do ESP é menor que o valor de tensão daquilo que estamos medindo
 
 /*-----------------------------------------------Constantes de Projeto --------------------------------------*/
 
@@ -40,6 +41,7 @@ static const uint32_t defaultVref=1114;    //Tensão de Referência do meu ESP32
 //Mais informações em: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/adc.html#adc-calibration
 
 static const char *TAG = "ESP";     //A tag que será impressa no log do sistema  
+
 
 
 
@@ -112,10 +114,7 @@ void app_main() {
     setup_nvs();                  //configura a memoria nvs  
     wifi_init_sta();              //configura e inicia a conexão wireless
     server = start_webserver();   //configura e inicia o server
-   /*while (true){
-        leitura_ADC();            //realiza a leitura do ADC a cada 100ms
-        vTaskDelay(100/portTICK_RATE_MS);
-    }*/
+    xTaskCreate(&leitura_ADC, "leitura_ADC", 512,NULL,5,NULL );
 }
 
 
@@ -134,8 +133,13 @@ static void setup_ADC(){
     esp_adc_cal_characterize(ADC_UNIT_1,ADC_ATTEN_DB_0,ADC_WIDTH_BIT_12,defaultVref,&adc_config);
 }
 
-static void leitura_ADC(){
 
+/* Essa função é rodada como uma task FreeRTOS e é atualizada a cada 100 ms para realizar a leitura do ADC
+e salvar nas variáveis corretas.
+*/
+static void leitura_ADC(void *pvParameter){
+
+    while(1){
         //É guardado na variável reading o valor bruto lido pelo adc
         uint32_t reading =  adc1_get_raw(pino_de_leitura); 
 
@@ -145,9 +149,11 @@ static void leitura_ADC(){
         //esp_adc_cal_characterize()
         uint32_t voltage =  esp_adc_cal_raw_to_voltage(reading,&adc_config);
 
-        tensao_da_bateria = voltage*4;
+        tensao_da_bateria = voltage*DIVISOR_DE_TENSAO;
         porcentagem_da_bateria=((tensao_da_bateria-3600)/7);
         //printf("Tensao: %d ; Porcentagem: %d \n",tensao_da_bateria,porcentagem_da_bateria);
+        vTaskDelay(100 / portTICK_RATE_MS);
+    }
 }
 
 //Inicializa a memória nvs pois é necessária para o funcionamento do Wireless
